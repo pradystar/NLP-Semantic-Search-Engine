@@ -1,8 +1,3 @@
-import pysolr
-import os
-import re
-solr = pysolr.Solr('http://localhost:8983/solr/new_core', timeout=10)
-
 '''
     This file is created for searching the data indexed in solr by index_file.py file, which indexed the data of Austrailian Broadcasting
     Comission 2006.
@@ -10,9 +5,16 @@ solr = pysolr.Solr('http://localhost:8983/solr/new_core', timeout=10)
     Output: Matched sentences and their respective scores. Top 10 search results with the maximum score are processed.
 '''
 
-# This function implements the search fumction in solr.
+import os
+import re
+import pysolr
+
+solr = pysolr.Solr('http://localhost:8983/solr/new_core', timeout=10)
 
 def search_data(query):
+	'''
+		This function implements the search fumction in solr.
+	'''
     result = solr.search(q='text:' + query, fl='id,text_str,score',)
     result_list = []
     for r in result:
@@ -23,7 +25,7 @@ def search_data(query):
             data.group(0).replace('[\'', '').replace(
                 '\']', '').replace('\\n', '')
         result_list.append(result_data)
-    if (len(result_list) > 10):
+    if len(result_list) > 10:
         r_list = []
         for i in range(10):
             r_list.append(result_list[i])
@@ -31,17 +33,16 @@ def search_data(query):
     else:
         return result_list
 
-    return
-
-# main function.
 
 def main():
+	'''
+		main function
+	'''
     data = input('Please enter the data to be searched: ')
     res_list = []
     res_list = search_data(data)
     for r in res_list:
         print(r)
-
 
 if __name__ == "__main__":
     main()
