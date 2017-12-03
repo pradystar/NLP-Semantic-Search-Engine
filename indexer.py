@@ -37,10 +37,10 @@ WN_TAG_LIST = {
 
 # initialize dependenices for StanfordDependency Parse
 STANFORD_VER = 'stanford-corenlp-3.8.0'
-PATH_TO_JAR = 'jars/stanford-corenlp/' + STANFORD_VER + '.jar'
-PATH_TO_MODELS_JAR = 'jars/stanford-corenlp/' + STANFORD_VER + '-models.jar'
-STANFORD_DEP_PARSER = sdp(path_to_jar=PATH_TO_JAR, path_to_models_jar=PATH_TO_MODELS_JAR)
-STANFORD_PARSER = sp(path_to_jar=PATH_TO_JAR, path_to_models_jar=PATH_TO_MODELS_JAR)
+#PATH_TO_JAR = 'jars/stanford-corenlp/' + STANFORD_VER + '.jar'
+#PATH_TO_MODELS_JAR = 'jars/stanford-corenlp/' + STANFORD_VER + '-models.jar'
+#STANFORD_DEP_PARSER = sdp(path_to_jar=PATH_TO_JAR, path_to_models_jar=PATH_TO_MODELS_JAR)
+#STANFORD_PARSER = sp(path_to_jar=PATH_TO_JAR, path_to_models_jar=PATH_TO_MODELS_JAR)
 
 def get_semantic_features(tagged_tok, line):
     '''
@@ -48,26 +48,27 @@ def get_semantic_features(tagged_tok, line):
     extracted from each word of sentence
     '''
     # use synset or enumerate??
-    lemma_sen = []
-    hyper_sen = []
-    hypo_sen = []
-    mero_sen = []
-    holo_sen = []
+    lemma_sen = set()
+    hyper_sen = set()
+    hypo_sen = set()
+    mero_sen = set()
+    holo_sen = set()
     for word, tag in tagged_tok:
         if tag[:2] in WN_TAG_LIST and tag != 'NNP':
             sense = lesk(line, word, pos=WN_TAG_LIST.get(tag[:2]))
             if not sense:
                 continue
             for lem in sense.lemmas():
-                lemma_sen.append(lem.name())
+                lemma_sen.add(lem.name())
             for hyper in sense.hypernyms()[:30]:
-                hyper_sen.append(word +',' + hyper.name())
+                hyper_sen.add(hyper.name())
             for hypo in sense.hyponyms()[:30]:
-                hypo_sen.append(hypo.name())
+                hypo_sen.add(hypo.name())
             for mero in sense.part_meronyms()[:30]:
-                mero_sen.append(mero.name())
+                mero_sen.add(mero.name())
             for holo in sense.member_holonyms()[:30]:
-                holo_sen.append(holo.name())
+                holo_sen.add(holo.name())
+   
     return (' '.join(lemma_sen), ' '.join(hyper_sen), ' '.join(hypo_sen),
             ' '.join(mero_sen), ' '.join(holo_sen))
 
