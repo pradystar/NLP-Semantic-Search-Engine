@@ -1,175 +1,172 @@
 '''
-    This file is specifically created to extract the mentioned below details for the words in the corpus:
-    -Lemmas
-    -Stem 
-    -POS tags
-    -Using wordnet extract hypernyms, hyponyms, meronyms and holonyms
-    -Syntactically parse the sentence, extract phrases, head words, dependency parse relations
+Index data into solr
 '''
-import os   
-import sys
-import pysolr
-import string
-from nltk.stem.porter import *
-from nltk.corpus import wordnet
-from nltk.stem import WordNetLemmatizer
-from nltk.tag import pos_tag
-from nltk import word_tokenize
+from os import listdir
+import time
+
+from nltk.tokenize import word_tokenize
+from nltk import pos_tag
+from nltk.corpus import wordnet as wn
+from nltk.wsd import lesk
+from nltk.stem.porter import PorterStemmer
 from nltk.tag.util import tuple2str
+from nltk.stem.wordnet import WordNetLemmatizer
+from nltk.parse.stanford import StanfordParser as sp
+from nltk.parse.stanford import StanfordDependencyParser as sdp
 
-#solr = pysolr.Solr('http://localhost:8983/solr/main_core', timeout=10)
+import pysolr
+# nltk pos tag to wordnet tag map
+WN_TAG_LIST = {
+    'NN': wn.NOUN,
+    'VB': wn.VERB,
+    'JJ': wn.ADJ,
+    'RB': wn.ADV
+    }
 
-def processing_data():
-    '''
-        Extracting the data as per the requirements.
-    '''
-    path = "extract_test"
-    dirs= os.listdir(path)
-    for f in dirs:
-        with open('extract_test/'+f,'r') as curr_file:
-            for line in curr_file:
-                for c in string.punctuation:
-                    line=line.replace(c,"")
-    
-                word_vector = []
-                lemmatize_sentence = ''
-                stemmed_sentence = ''
-                pos_tag_sentence = ''
-                hyper_data=''
-                hypo_data=''
-                meronym_data='' 
-                word_vector = word_tokenize('PM denies knowledge of AWB kickbacks', language='english')
-                pos_tag_sentence = func_pos_tagg(word_vector)
-                #print(pos_tag_sentence)
-                pos_word_vector= pos_tag_sentence.split()
-                lemmatize_sentence = func_lemmatize(pos_word_vector)
-                #print(lemmatize_sentence)
-                stemmed_sentence= func_stemmer(word_vector)
-                #print ("Stemmed Sentence: "+stemmed_sentence)
-                hyper_data=func_hypernym(word_vector)
-                #print(hyper_data)
-                hypo_data=func_hyponym(word_vector)
-                #print(hypo_data)
-                meronym_data=func_meronym(word_vector)
-                #print(meronym_data)
 
-def func_lemmatize(sentence_words):
+# for word, tag in tagged_tok:
+#     print(word, tag)
+#     if tag[:2] in WN_TAG_LIST and tag != 'NNP':
+#         sense = lesk(line, word, pos=WN_TAG_LIST.get(tag[:2]))
+#         print(word, sense, sense.definition())
+#         if not sense:
+#             continue
+#         for hyper in sense.hypernyms()[:30]:
+#             hyper_sen.append(word +',' + hyper.name())
+
+
+# initialize dependenices for StanfordDependency Parse
+STANFORD_VER = 'stanford-corenlp-3.8.0'
+PATH_TO_JAR = 'jars/stanford-corenlp/' + STANFORD_VER + '.jar'
+PATH_TO_MODELS_JAR = 'jars/stanford-corenlp/' + STANFORD_VER + '-models.jar'
+STANFORD_DEP_PARSER = sdp(path_to_jar=PATH_TO_JAR, path_to_models_jar=PATH_TO_MODELS_JAR)
+STANFORD_PARSER = sp(path_to_jar=PATH_TO_JAR, path_to_models_jar=PATH_TO_MODELS_JAR)
+
+def get_semantic_features(tagged_tok, line):
     '''
-        Function to lemmatize the sentence words.Lemma's will be found for noun, adverb, adjective and adverb.
-        ** change string to list
+    return features like synonyms, hypernyms, hyponyms, meronyms, holonymns
+    extracted from each word of sentence
+    '''
+    # use synset or enumerate??
+    lemma_sen = []
+    hyper_sen = []
+    hypo_sen = []
+    mero_sen = []
+    holo_sen = []
+    for word, tag in tagged_tok:
+        if tag[:2] in WN_TAG_LIST and tag != 'NNP':
+            sense = lesk(line, word, pos=WN_TAG_LIST.get(tag[:2]))
+            if not sense:
+                continue
+            for lem in sense.lemmas():
+                lemma_sen.append(lem.name())
+            for hyper in sense.hypernyms()[:30]:
+                hyper_sen.append(word +',' + hyper.name())
+            for hypo in sense.hyponyms()[:30]:
+                hypo_sen.append(hypo.name())
+            for mero in sense.part_meronyms()[:30]:
+                mero_sen.append(mero.name())
+            for holo in sense.member_holonyms()[:30]:
+                holo_sen.append(holo.name())
+    return (' '.join(lemma_sen), ' '.join(hyper_sen), ' '.join(hypo_sen),
+            ' '.join(mero_sen), ' '.join(holo_sen))
+
+def get_lemmatized_line(tagged_tok):
+    '''
+    return lemmatized string
     '''
     wnl = WordNetLemmatizer()
     lemma_list = []
-    lemmas = ''
-    tag=''
-    for w in sentence_words:
-        word_lemmas = ''
-        wrd=(w).split('/')[0]
-        tag_data= (w).split('/')[1]
-        tag=find_tag(wrd,tag_data)
-        if (tag !=''):
-            word_lemmas=wrd 
-            data = wnl.lemmatize(wrd, tag)
-            word_lemmas = word_lemmas+" "+data+" "
-        lemma_list.append(word_lemmas)
-    lemmas = ''.join(lemma_list)
-    return lemmas
+    for word, tag in tagged_tok:
+        if tag[:2] in WN_TAG_LIST:
+            word = wnl.lemmatize(word, pos=WN_TAG_LIST.get(tag[:2]))
+        lemma_list.append(word)
+    return ' '.join(lemma_list)
 
-def find_tag(wrd,tag_data):
+def get_dependency_relations(line):
     '''
-        This function determines the tag, which is used by the wordNetLemmatizer to determine the lemma.
-    '''  
-    tag=''
-    if tag_data.startswith('N'):
-        tag = 'n'
-    elif tag_data.startswith('J'):
-        tag= 'a'
-    elif tag_data.startswith('R'):
-        tag= 'r'
-    elif tag_data.startswith('V'):
-        tag='v' 
-    return tag
+    extract dependency tree and head word of the sentence
+    '''
+    result = STANFORD_DEP_PARSER.raw_parse(line)
+    # parse_result = STANFORD_PARSER.raw_parse(line)
+    dep_tree = [r for r in result]
+    # parse_tree = [r for r in parse_result]
+    dep_dict = dep_tree[0]
+    head = dep_dict.root['word']
+    # noun_phrases_list = []
+    # verb_phrases_list = []
+    # for subtree in parse_tree[0].subtrees(filter=lambda x: x.label() in ('NP', 'VP')):
+    #     if subtree.label() == 'NP':
+    #         noun_phrases_list.append(' '.join(subtree.leaves()))
+    #     else:
+    #         verb_phrases_list.append(' '.join(subtree.leaves()))
+    return head#, ' '.join(noun_phrases_list), ' '.join(verb_phrases_list)
 
-def func_stemmer(sentence_words):
+def indexer(instance_url='http://localhost:8983/solr/collection_1/', dir_file='extract'):
     '''
-        Function to stem the sentence words.
+    load the solr instace and index from the dir_file
     '''
-    pt = PorterStemmer()
-    word_stems = ''
-    for w in sentence_words:
-        stem_word = ''
-        w_1 = w.lower()
-        stem_word = pt.stem(w_1)
-        word_stems = word_stems+" " +stem_word 
-    return word_stems
-
-
-def func_pos_tagg(sentence_words):
-    '''
-        Function to tag the words of the sentence.
-        ** change it to list**
-    '''
-    tagged_sentence = ''
-    formatted_sentence= ''
-    tagged_sentence = pos_tag(sentence_words)
-    for tagged_token in tagged_sentence:
-        formatted_sentence= formatted_sentence+" "+tuple2str(tagged_token)
-    return formatted_sentence
-
-def func_hypernym(sentence_words):
-    '''
-        This function determines the hypernyms for the words of the sentence, by first determining the synsets.
-    '''
-    hyper_words=''
-    for words in sentence_words: 
-        for synset in wordnet.synsets(words):
-            syn_hyper=''
-            hyper_details=[]
-            hyper_details_data=''
-            if str(synset.hypernyms())=='[]':
-                hyper_details.append(words)
-            else:
-                hyper_details.append(str(synset.hypernyms()))      
-            hyper_details_data=' '.join(hyper_details)
-            syn_hyper=syn_hyper+' '+hyper_details_data+' '
-            hyper_words=hyper_words+''+syn_hyper
-    return hyper_words
-
-def func_hyponym(sentence_words):
-    '''
-        This function determines the hyponyms for the words of the sentence, by first determining the synsets.
-    '''
-    hypo_words=''
-    hypo_details=set()
-    for words in sentence_words:
-        for synset in wordnet.synsets(words):
-            if str(synset.hyponyms())== []:
-                hypo_details.add(words)
-            else:
-                hypo_details.add(str(synset.hyponyms()))
-        hypo_words=' '.join(hypo_details)
-    return hypo_words 
-
-def func_meronym(sentence_words):
-    '''
-        This function determines the meronyms for the words of the sentence, by first determining the synsets.
-    '''
-    meronym_words=''
-    meronym_details=set()
-    for words in sentence_words:
-        for synset in wordnet.synsets(words):
-            data=str(synset.part_meronyms())
-            if data!='[]':
-                meronym_details.add(data)
-            else:
-                meronym_details.add(words)
-        meronym_words=' '.join(meronym_details)
-    return meronym_words
-
+    start = time.time()
+    solr = pysolr.Solr(instance_url)
+    # files = [f for f in listdir(dir_file)]
+    files = listdir(dir_file)
+    tot = len(files)
+    counter = 0
+    data = []
+    stemmer = PorterStemmer()
+    for f in files:
+        counter += 1
+        first = True
+        with open('extract/' + f, 'r') as doc:
+            sentence_id = 1
+            for line in doc:
+                if first:
+                    first = False
+                    title = line.strip()
+                    continue
+                line = line.strip()
+                tokens = word_tokenize(line)
+                tagged_tok = pos_tag(tokens)
+                tagged_list = [tuple2str(t) for t in tagged_tok]
+                lemma_line = get_lemmatized_line(tagged_tok)
+                stem_line = [stemmer.stem(t) for t in tokens]
+                # head_word, noun_phrases, verb_phrases = get_dependency_relations(line)
+                # head_word = get_dependency_relations(line)
+                synonyms, hypernyms, hyponyms, meronyms, holonymns = get_semantic_features(
+                    tagged_tok, tokens)
+                data.append({
+                    'id': f + '_' + str(sentence_id),
+                    'title': title,
+                    'text': ' '.join(tokens),
+                    'pos_tag': ' '.join(tagged_list),
+                    'lemmas': lemma_line,
+                    'stems': ' '.join(stem_line),
+                    'synonyms': synonyms,
+                    'hypernyms': hypernyms,
+                    'hyponyms': hyponyms,
+                    'meronyms': meronyms,
+                    'holonymns': holonymns,
+                    # 'head_word': head_word,
+                    # 'noun_phrases': noun_phrases,
+                    # 'verb_phrases': verb_phrases
+                })
+                sentence_id += 1
+        if counter % 1000 == 0:
+            print('processed %d/%d' %(counter, tot))
+            solr.add(data)
+            data = []
+    if data:
+        solr.add(data)
+    print(time.time() - start)
 
 def main():
-    processing_data()
+    '''
+    call indexer
+    '''
+    # files = [f for f in listdir('extract')]
+    # print(files)
+    indexer()
+    # get_dependency_relations('All the morning flights from Denver to Tampa leaving before 10')
 
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
