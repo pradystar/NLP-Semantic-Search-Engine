@@ -54,8 +54,9 @@ def get_semantic_features(tagged_tok, line):
     mero_sen = set()
     holo_sen = set()
     for word, tag in tagged_tok:
-        if tag[:2] in WN_TAG_LIST and tag != 'NNP':
-            sense = lesk(line, word, pos=WN_TAG_LIST.get(tag[:2]))
+        if tag[:2] in WN_TAG_LIST:# and tag != 'NNP':
+            # sense = lesk(line, word, pos=WN_TAG_LIST.get(tag[:2]))
+            sense = lesk(line, word)
             if not sense:
                 continue
             for lem in sense.lemmas():
@@ -68,7 +69,6 @@ def get_semantic_features(tagged_tok, line):
                 mero_sen.add(mero.name())
             for holo in sense.member_holonyms()[:30]:
                 holo_sen.add(holo.name())
-   
     return (' '.join(lemma_sen), ' '.join(hyper_sen), ' '.join(hypo_sen),
             ' '.join(mero_sen), ' '.join(holo_sen))
 
