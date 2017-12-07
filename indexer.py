@@ -95,11 +95,6 @@ def get_dependency_relations(line, q=False):
     # print(head)
     for head, _, _ in dep_dict.triples():
         head_words.add(head[0])
-    if q:
-        return ' '.join(head_words)
-    if root_word in head_words:
-        head_words.remove(root_word)
-    head_words.add(root_word + '^2')
     # noun_phrases_list = []
     # verb_phrases_list = []
     # for subtree in parse_tree[0].subtrees(filter=lambda x: x.label() in ('NP', 'VP')):
@@ -127,11 +122,11 @@ def indexer(instance_url='http://localhost:8983/solr/collection_1/', dir_file='e
         first = True
         with open('extract/' + f, 'r') as doc:
             for line in doc:
-                sentence_id += 1
                 if first:
                     first = False
                     title = line.strip()
-                    # continue
+                    continue
+                sentence_id += 1
                 line = line.strip()
                 tokens = word_tokenize(line)
                 if method == 0:

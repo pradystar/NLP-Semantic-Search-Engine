@@ -79,8 +79,8 @@ def search(query, method, instance_url):
                 q_list.append('hypernyms:' + hypernyms + '^4')
             # if hyponyms:
             #     q_list.append('hyponyms:' + hyponyms + '^4')
-            if head_words:
-                q_list.append('head_word:' + head_words + '^3')
+            # if head_words:
+            #     q_list.append('head_word:' + head_words + '^4')
             # if meronyms:
             #     q_list.append('meronyms:' + meronyms + '^1.4')
             # if holonyms:
