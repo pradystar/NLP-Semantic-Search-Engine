@@ -166,11 +166,10 @@ def indexer(instance_url='http://localhost:8983/solr/collection_1/', dir_file='e
                 # sentence_id += 1
         if counter % 1000 == 0:
             print('processed %d/%d' %(counter, tot))
-            #solr.add(data)
+            solr.add(data)
             data = []
-    # if data:
-    #     solr.add(data)
-    print(tot)
+    if data:
+        solr.add(data)
     print(time.time() - start)
 
 def main():
