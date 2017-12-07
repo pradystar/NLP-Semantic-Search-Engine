@@ -33,7 +33,7 @@ WN_TAG_LIST = {
 # STANFORD_DEP_PARSER = sdp(path_to_jar=PATH_TO_JAR, path_to_models_jar=PATH_TO_MODELS_JAR)
 # STANFORD_PARSER = sp(path_to_jar=PATH_TO_JAR, path_to_models_jar=PATH_TO_MODELS_JAR)
 
-CONLP = CoreNLPParser()
+# CONLP = CoreNLPParser()
 CONLDP = CoreNLPDependencyParser()
 
 def get_semantic_features(tagged_tok, line):
@@ -120,7 +120,7 @@ def indexer(instance_url='http://localhost:8983/solr/collection_1/', dir_file='e
     stemmer = PorterStemmer()
     for f in files:
         counter += 1
-        print(counter)
+        # print(counter)
         sentence_id = 0
         first = True
         with open('extract/' + f, 'r') as doc:
@@ -143,8 +143,8 @@ def indexer(instance_url='http://localhost:8983/solr/collection_1/', dir_file='e
                 tagged_list = [tuple2str(t) for t in tagged_tok]
                 lemma_line = get_lemmatized_line(tagged_tok)
                 stem_line = [stemmer.stem(t) for t in tokens]
-                head_word, noun_phrases, verb_phrases = get_dependency_relations(lemma_line)
-                # head_word = get_dependency_relations(lemma_line)
+                # head_word, noun_phrases, verb_phrases = get_dependency_relations(lemma_line)
+                head_word = get_dependency_relations(lemma_line)
                 synonyms, hypernyms, hyponyms, meronyms, holonymns = get_semantic_features(
                     tagged_tok, tokens)
                 data.append({
@@ -160,8 +160,8 @@ def indexer(instance_url='http://localhost:8983/solr/collection_1/', dir_file='e
                     'meronyms': meronyms,
                     'holonymns': holonymns,
                     'head_word': head_word,
-                    'noun_phrases': noun_phrases,
-                    'verb_phrases': verb_phrases
+                    # 'noun_phrases': noun_phrases,
+                    # 'verb_phrases': verb_phrases
                 })
                 # sentence_id += 1
         if counter % 1000 == 0:
