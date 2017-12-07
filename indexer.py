@@ -78,7 +78,7 @@ def get_lemmatized_line(tagged_tok):
         lemma_list.append(word)
     return ' '.join(lemma_list)
 
-def get_dependency_relations(line):
+def get_dependency_relations(line, q=False):
     '''
     extract dependency tree and head word of the sentence
     '''
@@ -95,6 +95,8 @@ def get_dependency_relations(line):
     # print(head)
     for head, _, _ in dep_dict.triples():
         head_words.add(head[0])
+    if q:
+        return ' '.join(head_words)
     if root_word in head_words:
         head_words.remove(root_word)
     head_words.add(root_word + '^2')
