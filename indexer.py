@@ -3,6 +3,7 @@ Index data into solr
 '''
 from os import listdir
 import time
+import sys
 
 from nltk.tokenize import word_tokenize
 from nltk import pos_tag
@@ -11,8 +12,10 @@ from nltk.wsd import lesk
 from nltk.stem.porter import PorterStemmer
 from nltk.tag.util import tuple2str
 from nltk.stem.wordnet import WordNetLemmatizer
-from nltk.parse.stanford import StanfordParser as sp
-from nltk.parse.stanford import StanfordDependencyParser as sdp
+# from nltk.parse.corenlp import CoreNLPParser
+from nltk.parse.corenlp import CoreNLPDependencyParser
+# from nltk.parse.stanford import StanfordParser as sp
+# from nltk.parse.stanford import StanfordDependencyParser as sdp
 
 import pysolr
 # nltk pos tag to wordnet tag map
@@ -23,24 +26,15 @@ WN_TAG_LIST = {
     'RB': wn.ADV
     }
 
-
-# for word, tag in tagged_tok:
-#     print(word, tag)
-#     if tag[:2] in WN_TAG_LIST and tag != 'NNP':
-#         sense = lesk(line, word, pos=WN_TAG_LIST.get(tag[:2]))
-#         print(word, sense, sense.definition())
-#         if not sense:
-#             continue
-#         for hyper in sense.hypernyms()[:30]:
-#             hyper_sen.append(word +',' + hyper.name())
-
-
 # initialize dependenices for StanfordDependency Parse
-STANFORD_VER = 'stanford-corenlp-3.8.0'
-#PATH_TO_JAR = 'jars/stanford-corenlp/' + STANFORD_VER + '.jar'
-#PATH_TO_MODELS_JAR = 'jars/stanford-corenlp/' + STANFORD_VER + '-models.jar'
-#STANFORD_DEP_PARSER = sdp(path_to_jar=PATH_TO_JAR, path_to_models_jar=PATH_TO_MODELS_JAR)
-#STANFORD_PARSER = sp(path_to_jar=PATH_TO_JAR, path_to_models_jar=PATH_TO_MODELS_JAR)
+# STANFORD_VER = 'stanford-corenlp-3.8.0'
+# PATH_TO_JAR = 'jars/stanford-corenlp/' + STANFORD_VER + '.jar'
+# PATH_TO_MODELS_JAR = 'jars/stanford-corenlp/' + STANFORD_VER + '-models.jar'
+# STANFORD_DEP_PARSER = sdp(path_to_jar=PATH_TO_JAR, path_to_models_jar=PATH_TO_MODELS_JAR)
+# STANFORD_PARSER = sp(path_to_jar=PATH_TO_JAR, path_to_models_jar=PATH_TO_MODELS_JAR)
+
+CONLP = CoreNLPParser()
+CONLDP = CoreNLPDependencyParser()
 
 def get_semantic_features(tagged_tok, line):
     '''
@@ -88,12 +82,22 @@ def get_dependency_relations(line):
     '''
     extract dependency tree and head word of the sentence
     '''
-    result = STANFORD_DEP_PARSER.raw_parse(line)
+    # result = STANFORD_DEP_PARSER.raw_parse(line)
     # parse_result = STANFORD_PARSER.raw_parse(line)
+    head_words = set()
+    result = CONLDP.raw_parse(line)
     dep_tree = [r for r in result]
+    # parse_result = CONLP.raw_parse(line)
     # parse_tree = [r for r in parse_result]
+    # print(dep_tree)
     dep_dict = dep_tree[0]
-    head = dep_dict.root['word']
+    root_word = dep_dict.root['word']
+    # print(head)
+    for head, _, _ in dep_dict.triples():
+        head_words.add(head[0])
+    if root_word in head_words:
+        head_words.remove(root_word)
+    head_words.add(root_word + '^2')
     # noun_phrases_list = []
     # verb_phrases_list = []
     # for subtree in parse_tree[0].subtrees(filter=lambda x: x.label() in ('NP', 'VP')):
@@ -101,15 +105,14 @@ def get_dependency_relations(line):
     #         noun_phrases_list.append(' '.join(subtree.leaves()))
     #     else:
     #         verb_phrases_list.append(' '.join(subtree.leaves()))
-    return head#, ' '.join(noun_phrases_list), ' '.join(verb_phrases_list)
+    return ' '.join(head_words)#, ' '.join(noun_phrases_list), ' '.join(verb_phrases_list)
 
-def indexer(instance_url='http://localhost:8983/solr/collection_1/', dir_file='extract'):
+def indexer(instance_url='http://localhost:8983/solr/collection_1/', dir_file='extract', method=1):
     '''
     load the solr instace and index from the dir_file
     '''
     start = time.time()
     solr = pysolr.Solr(instance_url)
-    # files = [f for f in listdir(dir_file)]
     files = listdir(dir_file)
     tot = len(files)
     counter = 0
@@ -117,22 +120,31 @@ def indexer(instance_url='http://localhost:8983/solr/collection_1/', dir_file='e
     stemmer = PorterStemmer()
     for f in files:
         counter += 1
+        print(counter)
+        sentence_id = 0
         first = True
         with open('extract/' + f, 'r') as doc:
-            sentence_id = 1
             for line in doc:
+                sentence_id += 1
                 if first:
                     first = False
                     title = line.strip()
-                    continue
+                    # continue
                 line = line.strip()
                 tokens = word_tokenize(line)
+                if method == 0:
+                    data.append({
+                        'id': f + '_' + str(sentence_id),
+                        'title': title,
+                        'text': ' '.join(tokens),
+                    })
+                    continue
                 tagged_tok = pos_tag(tokens)
                 tagged_list = [tuple2str(t) for t in tagged_tok]
                 lemma_line = get_lemmatized_line(tagged_tok)
                 stem_line = [stemmer.stem(t) for t in tokens]
-                # head_word, noun_phrases, verb_phrases = get_dependency_relations(line)
-                # head_word = get_dependency_relations(line)
+                head_word, noun_phrases, verb_phrases = get_dependency_relations(lemma_line)
+                # head_word = get_dependency_relations(lemma_line)
                 synonyms, hypernyms, hyponyms, meronyms, holonymns = get_semantic_features(
                     tagged_tok, tokens)
                 data.append({
@@ -147,17 +159,18 @@ def indexer(instance_url='http://localhost:8983/solr/collection_1/', dir_file='e
                     'hyponyms': hyponyms,
                     'meronyms': meronyms,
                     'holonymns': holonymns,
-                    # 'head_word': head_word,
-                    # 'noun_phrases': noun_phrases,
-                    # 'verb_phrases': verb_phrases
+                    'head_word': head_word,
+                    'noun_phrases': noun_phrases,
+                    'verb_phrases': verb_phrases
                 })
-                sentence_id += 1
+                # sentence_id += 1
         if counter % 1000 == 0:
             print('processed %d/%d' %(counter, tot))
-            solr.add(data)
+            #solr.add(data)
             data = []
-    if data:
-        solr.add(data)
+    # if data:
+    #     solr.add(data)
+    print(tot)
     print(time.time() - start)
 
 def main():
@@ -166,8 +179,12 @@ def main():
     '''
     # files = [f for f in listdir('extract')]
     # print(files)
-    indexer()
-    # get_dependency_relations('All the morning flights from Denver to Tampa leaving before 10')
+    # indexer()
+    if int(sys.argv[1]) == 0:
+        indexer(instance_url='http://localhost:8983/solr/collection_0/', method=0)
+    else:
+        indexer()
+    # print(get_dependency_relations('Snowy Hydro inquiry wo n\'t delay sale'))
 
 if __name__ == '__main__':
     main()
