@@ -70,23 +70,23 @@ def search(query, method, instance_url):
             if pos_tag_data:
                 q_list.append('pos_tag:' + pos_tag_data + '^0.02')
             if lemmas:
-                q_list.append('lemmas:' + lemmas + '^3')
+                q_list.append('lemmas:' + lemmas + '^4')
             # if stems:
             #     q_list.append('stems:' + stems + '^1.5')
             if synonyms:
-                q_list.append('synonyms:' + synonyms + '^3')
+                q_list.append('synonyms:' + synonyms + '4')
             if hypernyms:
-                q_list.append('hypernyms:' + hypernyms + '^4')
+                q_list.append('hypernyms:' + hypernyms + '^5')
             # if hyponyms:
             #     q_list.append('hyponyms:' + hyponyms + '^4')
-            # if head_words:
-            #     q_list.append('head_word:' + head_words + '^4')
+            if head_words:
+                q_list.append('head_word:' + head_words + '^0.5')
             # if meronyms:
             #     q_list.append('meronyms:' + meronyms + '^1.4')
             # if holonyms:
             #     q_list.append('holonymns:' + holonyms + '^1.4')
     q_string = ', '.join(q_list)
-    print('The Solr query is q=%s, fl=\'id,text\'' % (q_string))
+    print('The Solr query is q=%s, fl=\'id,text\'\n' % (q_string))
     result = solr.search(q=q_string, fl='id,text')
     # for r in json.dumps(result.docs):
     #     print(r)
